@@ -16,39 +16,39 @@
             crossorigin="anonymous"></script>
 
     <script>
-        $(function(){
+        $(function () {
 
 
             $("#update").click(update);
 
-            function update(){
-                var image=new Image();
+            function update() {
+                var image = new Image();
 
-                image.addEventListener('load', function(){
-                    $canvas=$("<canvas width='" + image.width + "' height='" + image.height + "'></canvas>");
+                image.addEventListener('load', function () {
+                    $canvas = $("<canvas width='" + image.width + "' height='" + image.height + "'></canvas>");
 
                     $("#input").empty();
                     $("#input").append($canvas);
-                    var ctx=$canvas[0].getContext("2d");
+                    var ctx = $canvas[0].getContext("2d");
                     ctx.imageSmoothingEnabled = false;
-                    ctx.drawImage(image,0,0);
+                    ctx.drawImage(image, 0, 0);
 
-                    var cell_size=parseInt($("#size").val());
-                    var variance=parseFloat($("#variance").val());
+
+                    var imgData = ctx.getImageData(0, 0, image.width, image.height);
+
+
+                    var points=generatePoints(imgData);
 
                     var pattern = Trianglify({
                         width: image.width,
                         height: image.height,
-                        variance:variance,
-                        cell_size:cell_size
+                        points: points
                     });
 
-                    var imgData = ctx.getImageData(0,0,image.width,image.height);
-
-                    for(let pkey in pattern.polys){
-                        poly=pattern.polys[pkey];
-                        let color=getAvgPolyColor(poly[1],imgData);
-                        poly[0]=color;
+                    for (let pkey in pattern.polys) {
+                        poly = pattern.polys[pkey];
+                        let color = getAvgPolyColor(poly[1], imgData);
+                        poly[0] = color;
                     }
 
                     $("#result").html(" ");
@@ -56,100 +56,157 @@
 
 
                 }, false);
-                image.src=$("#imgurl").val();
+                image.src = $("#imgurl").val();
 
 
             }
+
             update();
         });
 
-        function getAvgPolyColor(poly,imageData){
+        function generatePoints(imageData) {
+            var size = parseInt($("#size").val());
+            var threshold = parseInt($("#threshold").val());
+            var jumpX = Math.floor(imageData.width / size);
+            var jumpY = Math.floor(imageData.height / size);
+            var result = [];
 
-            var fromX=imageData.width;
-            var toX=0;
-            var fromY=imageData.height;
-            var toY=0;
-            
-            for(let pointKey in poly ){
-                let point=poly[pointKey];
-                let x=point[0];
-                let y=point[1];
-                if(x<fromX){
-                    fromX=x;
-                }
-                if(y<fromY){
-                    fromY=y;
-                }
-                if(x>toX){
-                    toX=x;
-                }
-                if(y>toY){
-                    toY=y;
+            for (let x = 0; x < imageData.width; x += jumpX) {
+                for (let y = 0; y < imageData.height; y += jumpY) {
+                    let diff = getHighestColorDiff(x, y, imageData, jumpX, jumpY);
+                    let chance=diff;
+
+
+                    if(diff>=threshold){
+                        result.push([x,y]);
+                    }
                 }
             }
 
-            if(fromX<0){
-                fromX=0;
+            return result;
+        }
+
+        function getHighestColorDiff(x, y, imageData, jumpX, jumpY) {
+            var highest = 0;
+            if (x + jumpX > imageData.width) {
+                jumpX = x - imageData.width;
             }
-            if(fromY<0){
-                fromY=0;
+
+            if (y + jumpY > imageData.width) {
+                jumpY = y - imageData.width;
             }
-            if(toX>imageData.width){
-                toX=imageData.width;
+            var current = getRgbForPixel(imageData, x, y);
+            var h = getRgbForPixel(imageData, x + jumpX, y);
+            var v = getRgbForPixel(imageData, x, y + jumpY);
+
+            let max=Math.max(
+                Math.abs(current.r - h.r),
+                Math.abs(current.g - h.g),
+                Math.abs(current.b - h.b),
+                Math.abs(current.r - v.r),
+                Math.abs(current.g - v.g),
+                Math.abs(current.b - v.b)
+            );
+
+
+            return max;
+
+        }
+
+        function getAvgPolyColor(poly, imageData) {
+
+            var fromX = imageData.width;
+            var toX = 0;
+            var fromY = imageData.height;
+            var toY = 0;
+
+            for (let pointKey in poly) {
+                let point = poly[pointKey];
+                let x = point[0];
+                let y = point[1];
+                if (x < fromX) {
+                    fromX = x;
+                }
+                if (y < fromY) {
+                    fromY = y;
+                }
+                if (x > toX) {
+                    toX = x;
+                }
+                if (y > toY) {
+                    toY = y;
+                }
             }
-            if(toY>imageData.height) {
+
+            if (fromX < 0) {
+                fromX = 0;
+            }
+            if (fromY < 0) {
+                fromY = 0;
+            }
+            if (toX > imageData.width) {
+                toX = imageData.width;
+            }
+            if (toY > imageData.height) {
                 toY = imageData.height;
             }
 
-            if(toX<0){
-                toX=0;
+            if (toX < 0) {
+                toX = 0;
             }
-            if(toY<0){
-                toY=0;
+            if (toY < 0) {
+                toY = 0;
             }
-            if(fromX>imageData.width){
-                fromX=imageData.width;
+            if (fromX > imageData.width) {
+                fromX = imageData.width;
             }
-            if(fromY>imageData.height) {
+            if (fromY > imageData.height) {
                 fromY = imageData.height;
             }
 
 
+            let avgR = 0;
+            let avgG = 0;
+            let avgB = 0;
+            let avgCount = 0;
 
-
-            let avgR=0;
-            let avgG=0;
-            let avgB=0;
-            let avgCount=0;
-
-            for(let x=fromX; x<toX;x++){
-                for(let y=fromY; y<toY;y++) {
-                    if(triangleContains(poly[0][0],poly[0][1],poly[1][0],poly[1][1],poly[2][0],poly[2][1],x,y)){
-                        let dataIndexStart = (y * imageData.width + x) * 4;
-                        avgR=newAvg(imageData.data[dataIndexStart],avgR,avgCount);
-                        avgG=newAvg(imageData.data[dataIndexStart+1],avgG,avgCount);
-                        avgB=newAvg(imageData.data[dataIndexStart+2],avgB,avgCount);
+            for (let x = fromX; x < toX; x++) {
+                for (let y = fromY; y < toY; y++) {
+                    if (triangleContains(poly[0][0], poly[0][1], poly[1][0], poly[1][1], poly[2][0], poly[2][1], x, y)) {
+                        let rgb = getRgbForPixel(imageData, x, y);
+                        avgR = newAvg(rgb.r, avgR, avgCount);
+                        avgG = newAvg(rgb.g, avgG, avgCount);
+                        avgB = newAvg(rgb.b, avgB, avgCount);
                         avgCount++;
                     }
                 }
             }
 
-            var result= "#" + ((1 << 24) + (Math.round(avgR) << 16) + (Math.round(avgG) << 8) + Math.round(avgB)).toString(16).slice(1);
+            var result = "#" + ((1 << 24) + (Math.round(avgR) << 16) + (Math.round(avgG) << 8) + Math.round(avgB)).toString(16).slice(1);
 
             return result;
 
         }
 
-        function newAvg(add,current,count){
-            var currentTotal=current*count;
-            return (currentTotal+add)/(count+1);
+        function getRgbForPixel(imageData, x, y) {
+            let dataIndexStart = (y * imageData.width + x) * 4;
+            return {
+                r: imageData.data[dataIndexStart],
+                g: imageData.data[dataIndexStart+1],
+                b: imageData.data[dataIndexStart+2]
+            };
+        }
+
+        function newAvg(add, current, count) {
+            var currentTotal = current * count;
+            return (currentTotal + add) / (count + 1);
         }
 
         function triangleContains(ax, ay, bx, by, cx, cy, x, y) {
 
             let det = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
 
-            return  det * ((bx - ax) * (y - ay) - (by - ay) * (x - ax)) > 0 &&
+            return det * ((bx - ax) * (y - ay) - (by - ay) * (x - ax)) > 0 &&
                 det * ((cx - bx) * (y - by) - (cy - by) * (x - bx)) > 0 &&
                 det * ((ax - cx) * (y - cy) - (ay - cy) * (x - cx)) > 0
 
@@ -159,17 +216,17 @@
     </script>
 </head>
 <body>
-    <div id="options">
-        <input type="text" id="imgurl" value="img/parrot.jpg">
-        <input type="text" id="variance" value="0.75">
-        <input type="text" id="size" value="75">
-        <input type="button" value="update" id="update">
-    </div>
-    <div id="input">
+<div id="options">
+    <input type="text" id="imgurl" value="img/parrot.jpg">
+    <input type="text" id="size" value="30">
+    <input type="text" id="threshold" value="50">
+    <input type="button" value="update" id="update">
+</div>
+<div id="input">
 
-    </div>
-    <div id="result">
+</div>
+<div id="result">
 
-    </div>
+</div>
 </body>
 </html>
