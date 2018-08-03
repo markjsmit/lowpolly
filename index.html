@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/trianglify/1.1.0/trianglify.min.js"></script>
+    <script
+            src="https://code.jquery.com/jquery-3.3.1.js"
+            integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
+            crossorigin="anonymous"></script>
+
+    <script>
+        $(function(){
+
+
+            $("#update").click(update);
+
+            function update(){
+                var image=new Image();
+
+                image.addEventListener('load', function(){
+                    $canvas=$("<canvas width='" + image.width + "' height='" + image.height + "'></canvas>");
+
+                    $("#input").empty();
+                    $("#input").append($canvas);
+                    var ctx=$canvas[0].getContext("2d");
+                    ctx.imageSmoothingEnabled = false;
+                    ctx.drawImage(image,0,0);
+
+                    var cell_size=parseInt($("#size").val());
+                    var variance=parseFloat($("#variance").val());
+
+                    var pattern = Trianglify({
+                        width: image.width,
+                        height: image.height,
+                        variance:variance,
+                        cell_size:cell_size
+                    });
+
+                    var imgData = ctx.getImageData(0,0,image.width,image.height);
+
+                    for(let pkey in pattern.polys){
+                        poly=pattern.polys[pkey];
+                        let color=getAvgPolyColor(poly[1],imgData);
+                        poly[0]=color;
+                    }
+
+                    $("#result").html(" ");
+                    $("#result").append(pattern.svg());
+
+
+                }, false);
+                image.src=$("#imgurl").val();
+
+
+            }
+            update();
+        });
+
+        function getAvgPolyColor(poly,imageData){
+
+            var fromX=imageData.width;
+            var toX=0;
+            var fromY=imageData.height;
+            var toY=0;
+            
+            for(let pointKey in poly ){
+                let point=poly[pointKey];
+                let x=point[0];
+                let y=point[1];
+                if(x<fromX){
+                    fromX=x;
+                }
+                if(y<fromY){
+                    fromY=y;
+                }
+                if(x>toX){
+                    toX=x;
+                }
+                if(y>toY){
+                    toY=y;
+                }
+            }
+
+            if(fromX<0){
+                fromX=0;
+            }
+            if(fromY<0){
+                fromY=0;
+            }
+            if(toX>imageData.width){
+                toX=imageData.width;
+            }
+            if(toY>imageData.height) {
+                toY = imageData.height;
+            }
+
+            if(toX<0){
+                toX=0;
+            }
+            if(toY<0){
+                toY=0;
+            }
+            if(fromX>imageData.width){
+                fromX=imageData.width;
+            }
+            if(fromY>imageData.height) {
+                fromY = imageData.height;
+            }
+
+
+
+
+            let avgR=0;
+            let avgG=0;
+            let avgB=0;
+            let avgCount=0;
+
+            for(let x=fromX; x<toX;x++){
+                for(let y=fromY; y<toY;y++) {
+                    if(triangleContains(poly[0][0],poly[0][1],poly[1][0],poly[1][1],poly[2][0],poly[2][1],x,y)){
+                        let dataIndexStart = (y * imageData.width + x) * 4;
+                        avgR=newAvg(imageData.data[dataIndexStart],avgR,avgCount);
+                        avgG=newAvg(imageData.data[dataIndexStart+1],avgG,avgCount);
+                        avgB=newAvg(imageData.data[dataIndexStart+2],avgB,avgCount);
+                        avgCount++;
+                    }
+                }
+            }
+
+            var result= "#" + ((1 << 24) + (Math.round(avgR) << 16) + (Math.round(avgG) << 8) + Math.round(avgB)).toString(16).slice(1);
+
+            return result;
+
+        }
+
+        function newAvg(add,current,count){
+            var currentTotal=current*count;
+            return (currentTotal+add)/(count+1);
+        }
+
+        function triangleContains(ax, ay, bx, by, cx, cy, x, y) {
+
+            let det = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+
+            return  det * ((bx - ax) * (y - ay) - (by - ay) * (x - ax)) > 0 &&
+                det * ((cx - bx) * (y - by) - (cy - by) * (x - bx)) > 0 &&
+                det * ((ax - cx) * (y - cy) - (ay - cy) * (x - cx)) > 0
+
+        }
+
+
+    </script>
+</head>
+<body>
+    <div id="options">
+        <input type="text" id="imgurl" value="img/parrot.jpg">
+        <input type="text" id="variance" value="0.75">
+        <input type="text" id="size" value="75">
+        <input type="button" value="update" id="update">
+    </div>
+    <div id="input">
+
+    </div>
+    <div id="result">
+
+    </div>
+</body>
+</html>
